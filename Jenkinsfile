@@ -1,33 +1,32 @@
-node('') {
-	stage ('checkout code'){
-		checkout scm
-	}
+node() {
 	
-	stage ('Build'){
-		sh "mvn clean install -Dmaven.test.skip=true"
+def sonarScanner = tool name: 'SonarScanner', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+	stage("Code Checkout"){
+		git credentialsId: 'forJenkins', url: 'https://github.com/SurendraKumarRout/MavenBuild.git'
 	}
 
-	stage ('Test Cases Execution'){
-		sh "mvn clean org.jacoco:jacoco-maven-plugin:prepare-agent install -Pcoverage-per-test"
+	stage("Maven Build"){
+		sh """
+			ls -lart
+			mvn clean install
+		"""
 	}
 
-	stage ('Sonar Analysis'){
-		//sh 'mvn sonar:sonar -Dsonar.host.url=http://35.153.67.119:9000 -Dsonar.login=77467cfd2653653ad3b35463fbfdb09285f08be5'
+stage("Code Review"){
+		withSonarQubeEnv(credentialsId: 'SonarQubeToken') {
+			//sh "${sonarScanner}/bin/sonar-scanner"
+		}
 	}
 
-	stage ('Archive Artifacts'){
-		archiveArtifacts artifacts: 'target/*.war'
+
+	stage("Code Deployment"){
+		//deploy adapters: [tomcat9(credentialsId: 'TomcatCreds', path: '', url: 'http://44.202.68.177:8080/')], contextPath: 'Surendra', war: 'target/*.war'
 	}
 	
-	stage ('Deployment'){
-		ansiblePlaybook colorized: true, disableHostKeyChecking: true, playbook: 'deploy.yml'
+	stage("Email Notification"){
+	    emailext attachLog: true, attachmentsPattern: 'target/*.war', body: '''$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS:
+
+        Check console output at $BUILD_URL to view the results.''', compressLog: true, subject: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!', to: 'anuj_sharma401@yahoo.com'
 	}
 	
-	stage ('Notification'){
-		emailext (
-		      subject: "Job Completed",
-		      body: "Jenkins Pipeline Job for Maven Build got completed !!!",
-		      to: "build-alerts@example.com"
-		    )
-	}
 }
